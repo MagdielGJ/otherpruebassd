@@ -1,23 +1,3 @@
-#-------------------------------------------------------------------------------
-# Author: Lukasz Janyst <lukasz@jany.st>
-# Date:   29.08.2017
-#-------------------------------------------------------------------------------
-# This file is part of SSD-TensorFlow.
-#
-# SSD-TensorFlow is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# SSD-TensorFlow is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with SSD-Tensorflow.  If not, see <http://www.gnu.org/licenses/>.
-#-------------------------------------------------------------------------------
-
 import argparse
 import math
 import cv2
@@ -26,6 +6,8 @@ import tensorflow as tf
 import numpy as np
 
 from collections import namedtuple
+
+myObject='dog'
 
 #-------------------------------------------------------------------------------
 def initialize_uninitialized_variables(sess):
@@ -54,6 +36,7 @@ def load_data_source(data_source):
     return get_source()
 
 #-------------------------------------------------------------------------------
+
 def rgb2bgr(tpl):
     """
     Convert RGB color tuple to BGR
@@ -189,8 +172,9 @@ class PrecisionSummary:
         feed = {self.mAP_placeholder: mAP}
         tensors = [self.mAP_summary_op]
         for label in self.labels:
-            feed[self.placeholders[label]] = APs[label]
-            tensors.append(self.summary_ops[label])
+            if label==myObject:
+                feed[self.placeholders[label]] = APs[label]
+                tensors.append(self.summary_ops[label])
 
         summaries = self.session.run(tensors, feed_dict=feed)
 
