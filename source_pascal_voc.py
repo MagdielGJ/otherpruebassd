@@ -34,6 +34,7 @@ from tqdm import tqdm
 #-------------------------------------------------------------------------------
 # Labels
 #-------------------------------------------------------------------------------
+
 label_defs = [
     Label('aeroplane',   rgb2bgr((0,     0,   0))),
     Label('bicycle',     rgb2bgr((111,  74,   0))),
@@ -54,7 +55,11 @@ label_defs = [
     Label('sheep',       rgb2bgr((220,  20,  60))),
     Label('sofa',        rgb2bgr((  0,   0, 142))),
     Label('train',       rgb2bgr((  0,   0, 230))),
-    Label('tvmonitor',   rgb2bgr((119,  11,  32)))]
+    Label('tvmonitor',   rgb2bgr((119,  11,  32)))
+   ]
+
+myObject='dog'
+#label_defs = [Label('person',rgb2bgr(( 52, 151,  52)))]
 
 #-------------------------------------------------------------------------------
 class PascalVOCSource:
@@ -71,110 +76,86 @@ class PascalVOCSource:
         self.valid_samples = []
         self.test_samples  = []
 
-    #---------------------------------------------------------------------------
-    def __build_annotation_list(self, root, dataset_type):
-        """
-        Build a list of samples for the VOC dataset (either trainval or test)
-        """
+
+
+    def __build_annotation_list( self,root, dataset_type):        
         annot_root  = root + '/Annotations/'
         annot_files = []
         with open(root + '/ImageSets/Main/' + dataset_type + '.txt') as f:
             for line in f:
-                annot_file = annot_root + line.strip() + '.xml'
-                if os.path.exists(annot_file):
-                    annot_files.append(annot_file)
+                pos=len(line.split(' '))-1
+                imgid=int(line.split(' ')[pos])
+                if imgid==1:
+                    dat=line.split(' ')[0]
+                    annot_file = annot_root + dat + '.xml'
+                    if os.path.exists(annot_file):
+                        annot_files.append(annot_file)
         return annot_files
-
     #---------------------------------------------------------------------------
-    def __build_sample_list(self, root, annot_files, dataset_name):
-        """
-        Build a list of samples for the VOC dataset (either trainval or test)
-        """
+    def __build_sample_list(self, root, annot_files, dataset_name):        
         image_root  = root + '/JPEGImages/'
         samples     = []
-
-        #-----------------------------------------------------------------------
-        # Process each annotated sample
-        #-----------------------------------------------------------------------
         for fn in tqdm(annot_files, desc=dataset_name, unit='samples'):
             with open(fn, 'r') as f:
                 doc      = lxml.etree.parse(f)
                 filename = image_root+doc.xpath('/annotation/filename')[0].text
-
-                #---------------------------------------------------------------
-                # Get the file dimensions
-                #---------------------------------------------------------------
                 if not os.path.exists(filename):
                     continue
-
                 img     = cv2.imread(filename)
                 imgsize = Size(img.shape[1], img.shape[0])
-
-                #---------------------------------------------------------------
-                # Get boxes for all the objects
-                #---------------------------------------------------------------
                 boxes    = []
                 objects  = doc.xpath('/annotation/object')
                 for obj in objects:
-                    #-----------------------------------------------------------
-                    # Get the properties of the box and convert them to the
-                    # proportional terms
-                    #-----------------------------------------------------------
                     label = obj.xpath('name')[0].text
-                    xmin  = int(float(obj.xpath('bndbox/xmin')[0].text))
-                    xmax  = int(float(obj.xpath('bndbox/xmax')[0].text))
-                    ymin  = int(float(obj.xpath('bndbox/ymin')[0].text))
-                    ymax  = int(float(obj.xpath('bndbox/ymax')[0].text))
-                    center, size = abs2prop(xmin, xmax, ymin, ymax, imgsize)
-                    box = Box(label, self.lname2id[label], center, size)
-                    boxes.append(box)
+                    if label==myObject:
+                        xmin  = int(float(obj.xpath('bndbox/xmin')[0].text))
+                        xmax  = int(float(obj.xpath('bndbox/xmax')[0].text))
+                        ymin  = int(float(obj.xpath('bndbox/ymin')[0].text))
+                        ymax  = int(float(obj.xpath('bndbox/ymax')[0].text))
+                        center, size = abs2prop(xmin, xmax, ymin, ymax, imgsize)
+                        box = Box(label, self.lname2id[label], center, size)
+                        boxes.append(box)
                 if not boxes:
                     continue
                 sample = Sample(filename, boxes, imgsize)
                 samples.append(sample)
-
         return samples
 
     #---------------------------------------------------------------------------
     def load_trainval_data(self, data_dir, valid_fraction):
-        """
-        Load the training and validation data
-        :param data_dir:       the directory where the dataset's file are stored
-        :param valid_fraction: what franction of the dataset should be used
-                               as a validation sample
-        """
 
-        #-----------------------------------------------------------------------
-        # Process the samples defined in the relevant file lists
-        #-----------------------------------------------------------------------
+        nameds=myObject+'_train' #nombre del datas
         train_annot = []
         train_samples = []
-        for vocid in ['VOC2007', 'VOC2012']:
+        #for vocid in ['VOC2007', 'VOC2012']:
+        for vocid in ['VOC2007']:
             root = data_dir + '/trainval/VOCdevkit/'+vocid
             name = 'trainval_'+vocid
-            annot = self.__build_annotation_list(root, 'trainval')
+            annot = self.__build_annotation_list(root, nameds)
             train_annot += annot
             train_samples += self.__build_sample_list(root, annot, name)
 
         root = data_dir + '/test/VOCdevkit/VOC2007'
-        annot = self.__build_annotation_list(root, 'test')
-        train_samples += self.__build_sample_list(root, annot, 'test_VOC2007')
+        annot = self.__build_annotation_list(root, myObject+'_test')
+        valtest= self.__build_sample_list(root, annot, 'test_VOC2007')
 
-        #-----------------------------------------------------------------------
-        # We have some 5.5k annotated samples that are not on these lists, so
-        # we can use them for validation
-        #-----------------------------------------------------------------------
-        root = data_dir + '/trainval/VOCdevkit/VOC2012'
+        #se dividen los ejemplos de test/VOCdevkit/VOC2007 para la validaci'on y test
+        ndat=int(len(valtest)/2)
+        valid_samples=valtest[:ndat]
+        test_samples=valtest[ndat:]
+
+        '''root = data_dir + '/trainval/VOCdevkit/VOC2012'
         all_annot = set(glob(root + '/Annotations/*.xml'))
         valid_annot = all_annot - set(train_annot)
         valid_samples = self.__build_sample_list(root, valid_annot,
                                                  'valid_VOC2012')
-
+        '''
         #-----------------------------------------------------------------------
         # Final set up and sanity check
         #-----------------------------------------------------------------------
         self.valid_samples = valid_samples
         self.train_samples = train_samples
+        self.test_samples  = test_samples
 
         if len(self.train_samples) == 0:
             raise RuntimeError('No training samples found in ' + data_dir)
@@ -185,6 +166,7 @@ class PascalVOCSource:
 
         self.num_train = len(self.train_samples)
         self.num_valid = len(self.valid_samples)
+        self.num_test  = len(self.test_samples)
 
     #---------------------------------------------------------------------------
     def load_test_data(self, data_dir):
